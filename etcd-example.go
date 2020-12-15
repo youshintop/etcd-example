@@ -2,19 +2,24 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"io/ioutil"
+
 	clientv3 "go.etcd.io/etcd/clientv3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"time"
+
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 )
 
 var Scheme = runtime.NewScheme()
 var Codecs = serializer.NewCodecFactory(Scheme)
-var inMediaType = "application/vnd.kubernetes.probobuf"
+var inMediaType = "application/vnd.kubernetes.protobuf"
 var outMediaType = "application/json"
 
 func init() {
@@ -22,9 +27,28 @@ func init() {
 }
 
 func main() {
+	pool := x509.NewCertPool()
+	caCertPath := "/etc/kubernetes/pki/etcd/ca.crt"
+	caCrt, err := ioutil.ReadFile(caCertPath)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	pool.AppendCertsFromPEM(caCrt)
+
+	cliCrt, err := tls.LoadX509KeyPair("/etc/kubernetes/pki/etcd/server.crt", "/etc/kubernetes/pki/etcd/server.key")
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
 	cli, err := clientv3.New(clientv3.Config{
 		Endpoints: []string{
 			"https://172.26.68.112:2379",
+		},
+		TLS: &tls.Config{
+			RootCAs:      pool,
+			Certificates: []tls.Certificate{cliCrt},
 		},
 		DialTimeout: 5 * time.Second,
 	})
@@ -59,7 +83,7 @@ func main() {
 }
 
 func newCodec(mediaTypes string) runtime.Codec {
-	info,ok :=	runtime.SerializerInfoForMediaType(Codecs.SupportedMediaTypes(), mediaTypes)
+	info, ok := runtime.SerializerInfoForMediaType(Codecs.SupportedMediaTypes(), mediaTypes)
 	if !ok {
 		panic(fmt.Errorf("no Serializers registered for %v", mediaTypes))
 	}
@@ -71,7 +95,7 @@ func newCodec(mediaTypes string) runtime.Codec {
 		panic(err)
 	}
 
-	encoder :=cfactory.EncoderForVersion(info.Serializer, gv)
+	encoder := cfactory.EncoderForVersion(info.Serializer, gv)
 	decoder := cfactory.DecoderToVersion(info.Serializer, gv)
 	return cfactory.CodecForVersions(encoder, decoder, gv, gv)
 }
