@@ -1,10 +1,10 @@
 package main
 
 import (
+	etcdv3 "go.etcd.io/etcd/clientv3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	etcdv3 "youshintop/etcd-example/v3"
 )
 
 var Scheme = runtime.NewScheme()
